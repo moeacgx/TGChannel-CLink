@@ -1,222 +1,118 @@
-# Telegram频道消息处理机器人
+# TGChannel-CLink · Telegram 频道转发机器人（Docker 支持）
 
-一个智能的Telegram机器人，用于监听指定频道的消息并自动处理包含特定文本的消息，支持链接替换和交互式管理。
+一个简单可靠的 Telegram 私聊→多频道转发机器人：
+- 私聊里把消息转发给机器人，机器人并发扇出到所有已配置频道
+- 自动把消息中的 `https://t.me/c/<id>/<msg>` 链接替换成目标频道对应的链接
+- 支持直接发送频道链接/@用户名/-100ID 快速加入转发列表
+
+核心实现位于 `simple_relay.py`，依赖 `python-telegram-bot 20.x`。
 
 ## ✨ 功能特性
 
-### 🔍 核心功能
-- **智能消息监听**: 监听配置的频道消息更新
-- **文本检测**: 自动检测包含指定文本的消息
-- **链接处理**: 智能替换消息中的Telegram链接频道ID
-- **格式保持**: 完美保留原始消息的格式和样式
-- **消息管理**: 自动删除原消息并发送处理后的新消息
+- 多频道并发分发，单条消息扇出上限可配（代码默认 8）
+- 智能链接替换（`t.me/c/...` 频道 ID 重写为目标频道对应 ID）
+- 交互式频道管理：/list、/add、/remove（带内联按钮选择）、/joined（识别并一键加入机器人所在频道）
+- 相册/媒体组顺序处理与去重，文本/图片/视频/文件均支持
+- 防重复发送（默认 6 小时 TTL），分发进度单条消息复用与节流
+- 配置与持久化：`channels.json`、`discovered_channels.json`（自动创建）；兼容旧版 `channels.txt`
 
-### 🛠️ 交互式管理
-- **频道管理**: 通过命令直接添加/删除监听频道
-- **文本配置**: 动态修改检测文本和链接文本
-- **实时状态**: 查看机器人运行状态和处理统计
-- **权限控制**: 完整的管理员权限验证机制
+## 📁 主要文件
 
-### 📊 监控与日志
-- **结构化日志**: 完整的操作日志记录
-- **错误处理**: 智能错误处理和重试机制
-- **统计信息**: 详细的处理统计和性能监控。
+```
+simple_relay.py          # 入口与核心逻辑
+channel_utils.py         # 频道标识规范化与去重
+link_processor.py        # 文本内 Telegram 链接重写
+requirements.txt         # 依赖清单
+.env.example             # 环境变量示例（复制为 .env）
+Dockerfile               # 生产镜像构建
+docker-compose.yml       # 本地一键启动（含持久化挂载）
+channels.json            # 已配置的目标频道（运行产生）
+discovered_channels.json # 已发现的机器人所在频道（运行产生）
+```
+
+## ⚙️ 环境与前置
+
+- Python 3.11+ 或 Docker（推荐 Docker Desktop）
+- Telegram Bot Token（@BotFather 获取）
+- 机器人需要在目标频道具备发消息权限（视需求授予管理员）
 
 ## 🚀 快速开始
 
-### 环境要求
-- Python 3.8+
-- Telegram Bot Token
+### 方式一：Docker（推荐）
 
-### 安装步骤
+1) 准备配置
 
-1. **克隆项目**
-```bash
-git clone <repository-url>
-cd telegram-bot
+```powershell
+Copy-Item .env.example .env
+# 编辑 .env，设置：
+# BOT_TOKEN=你的BotToken
+# ADMIN_IDS=12345,67890   # 可选，逗号分隔；不设置则任何人都视为管理员
+# 如需网络代理/加速，可同时加入：
+# HTTP_PROXY=http://127.0.0.1:7890
+# HTTPS_PROXY=http://127.0.0.1:7890
+# PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-2. **安装依赖**
-```bash
+2) 构建并启动
+
+```powershell
+docker compose up -d --build
+docker compose logs -f
+```
+
+说明：`docker-compose.yml` 会将当前目录挂载到容器 `/app`，运行中生成/更新的 `channels.json`、`discovered_channels.json` 均持久化在宿主机。
+
+网络受限时：可在 Docker Desktop → Settings → Docker Engine 配置 registry mirrors 与 DNS，再重试。
+
+### 方式二：本地运行（Python）
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env
+# 编辑 .env 填写 BOT_TOKEN/ADMIN_IDS
+python -u simple_relay.py
 ```
 
-3. **配置环境变量**
-```bash
-cp .env.example .env
-# 编辑 .env 文件，填入你的配置
-```
+## 🔧 使用说明
 
-4. **配置频道列表**
-```bash
-# 编辑 channels.txt 文件，添加要监听的频道
-echo "-1001234567890" >> channels.txt
-echo "@your_channel" >> channels.txt
-```
+在 Telegram 私聊中与机器人对话：
 
-5. **启动机器人**
-```bash
-python main.py
-```
+- /start：显示使用方法与命令概览（simple_relay.py:280）
+- /list：查看当前转发目标列表（simple_relay.py:266）
+- /add <@user|-100id|链接 ...>：批量添加目标频道，支持 t.me/c 和 @用户名（simple_relay.py:297）
+- /remove <名称|@user|-100id>：移除目标频道；不带参数会弹出可视化删除按钮（simple_relay.py:313）
+- /joined：识别机器人所在但未加入工作列表的频道，支持一键加入（simple_relay.py:404）
 
-## ⚙️ 配置说明
+直接把频道链接/@用户名/-100ID 发给机器人，也会自动尝试解析并加入（基于 `get_chat`，保存至 `channels.json`）。把要分发的消息（文本/图片/视频/相册）转给机器人，机器人会并发分发到全部目标频道并在一条进度消息里显示结果。
 
-### 环境变量配置 (.env)
-```env
-# 必需配置
-BOT_TOKEN=your_bot_token_here
+## 📦 配置与数据
 
-# 管理员配置（用户ID，逗号分隔）
-ADMIN_IDS=123456789,987654321
+- 环境变量（simple_relay.py:31-35）
+  - BOT_TOKEN：必填
+  - ADMIN_IDS：可选，逗号分隔。不设置则默认任何人均为管理员
+- 数据文件（simple_relay.py:38-41）
+  - channels.json：转发目标列表（含 id/token/name/username）
+  - discovered_channels.json：发现的机器人所在频道
+  - channels.txt：兼容旧版的简易列表，首次运行可为空；如存在会在首次迁移至 JSON
 
-# 可选配置
-LOG_LEVEL=INFO
-```
+## 🧠 实现要点（简述）
 
-### 频道配置 (channels.txt)
-```txt
-# 支持两种格式：
-# 1. 频道ID格式
--1001234567890
+- 链接重写：`link_processor.py` 将文本中的 `t.me/c/<id>/<msg>` 改写为目标频道对应链接
+- 频道标识规范化：`channel_utils.py` 统一处理 @用户名 / -100ID / t.me 链接
+- 并发与去重：媒体组顺序控制、防重复缓存（默认 6 小时 TTL），并发扇出上限默认 8
 
-# 2. 用户名格式
-@channel_username
-```
+## ❓常见问题
 
-### 动态设置 (settings.json)
-```json
-{
-  "detection_text": "▶️加入会员观看完整版",
-  "link_text": "观看完整版",
-  "created_at": "2025-08-15",
-  "last_updated": "2025-08-15"
-}
-```
-
-## 🤖 管理员命令
-
-### 频道管理
-- `/add_channel <频道>` - 添加监听频道
-- `/remove_channel <频道>` - 移除监听频道
-- `/list_channels` - 查看所有监听频道
-
-### 文本配置
-- `/set_text <文本>` - 设置检测文本
-- `/set_link_text <文本>` - 设置链接文本
-
-### 状态查询
-- `/status` - 查看机器人运行状态
-- `/help` - 显示帮助信息
-
-### 使用示例
-```
-/add_channel -1001234567890
-/add_channel @my_channel
-/set_text ▶️加入会员观看完整版
-/set_link_text 点击观看
-/status
-```
-
-## 🔧 工作原理
-
-1. **消息监听**: 机器人监听配置文件中指定的频道
-2. **文本检测**: 检查新消息是否包含目标检测文本
-3. **链接处理**: 使用正则表达式查找并替换链接中的频道ID
-4. **消息替换**: 删除原始消息，发送处理后的新消息
-5. **格式保持**: 保留原始消息的所有格式信息
-
-### 链接处理逻辑
-- 匹配格式: `https://t.me/c/数字/数字`
-- ID转换: 自动处理-100前缀的频道ID格式
-- 智能替换: 将链接中的频道ID替换为当前频道ID
-
-## 📁 项目结构
-
-```
-telegram-bot/
-├── main.py                 # 主程序入口
-├── config.py              # 配置管理模块
-├── message_handler.py     # 消息处理核心逻辑
-├── link_processor.py      # 链接处理模块
-├── admin_commands.py      # 管理员命令处理模块
-├── logger_config.py       # 日志配置模块
-├── requirements.txt       # Python依赖
-├── channels.txt          # 频道列表配置
-├── settings.json         # 动态设置配置
-├── .env.example          # 环境变量示例
-├── README.md             # 项目说明文档
-└── tests/                # 测试文件目录
-    ├── test_config.py
-    ├── test_message_handler.py
-    ├── test_link_processor.py
-    └── test_admin_commands.py
-```
-
-## 🧪 测试
-
-运行单元测试：
-```bash
-# 运行所有测试
-pytest
-
-# 运行特定测试文件
-pytest tests/test_config.py
-
-# 运行测试并显示覆盖率
-pytest --cov=.
-```
-
-## 📝 日志
-
-机器人会在 `logs/` 目录下生成日志文件：
-- 文件名格式: `bot_YYYYMMDD.log`
-- 同时输出到控制台和文件
-- 支持结构化JSON格式日志
-
-## ⚠️ 注意事项
-
-1. **权限要求**: 机器人需要在目标频道具有删除和发送消息的权限
-2. **频道ID格式**: 注意-100前缀的处理，机器人会自动转换
-3. **API限制**: 注意Telegram API的频率限制
-4. **备份配置**: 建议定期备份配置文件
-
-## 🔒 安全建议
-
-- 妥善保管BOT_TOKEN，不要泄露给他人
-- 仅将管理员权限授予可信用户
-- 定期检查监听频道列表
-- 监控机器人的运行日志
-
-## 🐛 故障排除
-
-### 常见问题
-
-**Q: 机器人无法启动**
-A: 检查BOT_TOKEN是否正确设置，网络连接是否正常
-
-**Q: 无法处理消息**
-A: 确认机器人在目标频道有足够权限，检查频道ID格式
-
-**Q: 链接替换不生效**
-A: 检查消息是否包含检测文本，确认链接格式正确
-
-**Q: 管理员命令无响应**
-A: 确认用户ID在ADMIN_IDS中，检查命令格式
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request来改进这个项目！
-
-## 📞 支持
-
-如有问题或建议，请通过以下方式联系：
-- 提交GitHub Issue
-- 发送邮件至项目维护者
+- Docker 构建拉不下基础镜像（python:3.11-slim）
+  - 配置镜像与 DNS 后重试，或设置 HTTP(S)_PROXY/PIP_INDEX_URL（compose 已支持 build args）
+- Windows 挂载提示拒绝访问
+  - Docker Desktop → Settings → Resources → File Sharing 允许共享对应盘符/目录
+- 机器人无法向频道发消息
+  - 确保机器人在目标频道具备发消息权限（必要时设为管理员）
 
 ---
 
-**⭐ 如果这个项目对你有帮助，请给它一个星标！**
+如果这个项目对你有帮助，欢迎 Star 支持！
+
