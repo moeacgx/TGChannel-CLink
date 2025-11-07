@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+
+# VCS
+.git/
+.gitignore
+
+# Env and local configs
+.env
+.env.*
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+
+# Tests and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Logs
+*.log
+
+# Build artifacts
+dist/
+build/
+

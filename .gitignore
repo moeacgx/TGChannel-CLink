@@ -4,3 +4,4 @@ channels.json
 discovered_channels.json
 #python
 __pycache__
+.venv
