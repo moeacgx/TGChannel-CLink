@@ -1,0 +1,6 @@
+#机密
+*.env
+channels.json
+discovered_channels.json
+#python
+__pycache__

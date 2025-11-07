@@ -286,6 +286,7 @@ class SimpleRelay:
             "• /add <@user|-100id|链接> …  批量添加目标频道\n"
             "• /list                  查看已添加的频道\n"
             "• /remove <名称|@user|-100id>  删除指定频道\n\n"
+            "• /joined 快捷加入bot所在频道频道\n\n"           
             "使用方式:\n"
             "1) 直接把频道消息链接/@用户名/-100ID 发给我，会自动解析加入\n"
             "2) 把要分发的消息(文本/图片/视频/相册)转发给我，我会并发分发到所有频道\n"
@@ -908,11 +909,6 @@ def main():
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & (~filters.COMMAND), relay.handle_forward))
     # 回调按钮处理：移除频道
     app.add_handler(CallbackQueryHandler(relay.cb_remove, pattern=r"^remove:"))
-    # 发现与添加加入频道
-    app.add_handler(CommandHandler("joined", relay.cmd_joined))
-    app.add_handler(CallbackQueryHandler(relay.cb_add_joined, pattern=r"^addjoined:"))
-    app.add_handler(ChatMemberHandler(relay.on_my_chat_member, chat_member_types=ChatMemberHandler.MY_CHAT_MEMBER))
-    app.add_handler(MessageHandler(filters.ChatType.CHANNEL, relay.on_channel_post))
 
     print("Simple Relay Bot started. Ctrl+C to stop.")
     # 让 getUpdates 更稳健：
@@ -925,7 +921,6 @@ def main():
         write_timeout=35.0,
         connect_timeout=15.0,
         pool_timeout=10.0,
-        allowed_updates=['message', 'callback_query', 'my_chat_member', 'channel_post'],
     )
 
 
